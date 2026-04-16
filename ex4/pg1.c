@@ -69,3 +69,54 @@ int main(int argc, char *argv[]) {
 
         if (n % size != 0) {
             printf("Number of students not divisible by processes\n");
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+    }
+
+    MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    local_n = n / size;
+
+    local_students = malloc(local_n * sizeof(Student));
+
+    MPI_Scatter(students, local_n, MPI_STUDENT,
+                local_students, local_n, MPI_STUDENT,
+                0, MPI_COMM_WORLD);
+
+    for (i = 0; i < local_n; i++) {
+        local_students[i].grade =
+            find_grade(local_students[i].total_mark);
+    }
+
+    MPI_Gather(local_students, local_n, MPI_STUDENT,
+               students, local_n, MPI_STUDENT,
+               0, MPI_COMM_WORLD);
+
+    if (rank == 0) {
+
+        FILE *out = fopen("grade.txt", "w");
+        if (!out) {
+            printf("Error opening grade.txt\n");
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+        fprintf(out, "Name\t\tRoll\t\tMarks\tGrade\n");
+        for (i = 0; i < n; i++) {
+            fprintf(out, "%s\t%s\t %.2f %c\n",
+                    students[i].name,
+                    students[i].roll,
+                    students[i].total_mark,
+                    students[i].grade);
+        }
+
+        fclose(out);
+        free(students);
+
+        printf("Grades calculated successfully.\n");
+    }
+
+    free(local_students);
+    MPI_Type_free(&MPI_STUDENT);
+    MPI_Finalize();
+
+    return 0;
+}
